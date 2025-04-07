@@ -9,6 +9,7 @@ import traceback
 import requests
 from dotenv import load_dotenv
 from collections import defaultdict
+import concurrent.futures # Added for concurrency
 
 # Load environment variables (including GOOGLE_API_KEY and SCRAPINGDOG_API_KEY)
 load_dotenv()
@@ -140,10 +141,7 @@ def call_scrapingdog_api(query: str, page: int, num: str = '10'):
         'page': str(page),
         'num': num
     }
-    log_query = f"Query='{query[:50]}...', Page={page}"
-    if num != '10': 
-        log_query += f", Num={num}"
-    print(f"  - Calling ScrapingDog API: {log_query}")
+    print(f"  - Calling ScrapingDog API: Query='{query[:50]}...', Page={page}")
 
     # --- Retry Logic --- 
     for attempt in range(MAX_RETRIES):
@@ -165,10 +163,10 @@ def call_scrapingdog_api(query: str, page: int, num: str = '10'):
                     return {"error": error_message, "status_code": response.status_code}
 
         except requests.exceptions.Timeout:
-            error_message = f"ScrapingDog Error: Request timed out for {log_query}."
+            error_message = f"ScrapingDog Error: Request timed out for Query='{query[:50]}...', Page={page}."
             print(f"    {error_message} (Attempt {attempt + 1}/{MAX_RETRIES})")
         except requests.exceptions.RequestException as e:
-            error_message = f"ScrapingDog Error: Request exception for {log_query}: {e}"
+            error_message = f"ScrapingDog Error: Request exception for Query='{query[:50]}...', Page={page}: {e}"
             print(f"    {error_message} (Attempt {attempt + 1}/{MAX_RETRIES})")
             is_400_error = False
             if hasattr(e, 'response') and e.response is not None and hasattr(e.response, 'status_code') and e.response.status_code == 400:
@@ -184,7 +182,7 @@ def call_scrapingdog_api(query: str, page: int, num: str = '10'):
             print(f"    Retrying in {delay} seconds...")
             time.sleep(delay)
         elif error_message:
-             print(f"    Max retries reached for {log_query}. Returning error.")
+             print(f"    Max retries reached for Query='{query[:50]}...', Page={page}. Returning error.")
              return {"error": error_message}
             
     return {"error": "Scraping failed after retries, unknown state."}
@@ -395,67 +393,91 @@ def parse_all_concept_data(keyword_report_md):
     return concepts
 
 
-# --- Updated Scraping Function --- 
+# --- New Concurrent Scraping Function ---
 
-def scrape_concepts_with_or(concepts_data: dict):
-    """Scrapes patents using a single OR query per concept/language for page 0, getting up to 50 results."""
-    print(f"\n--- Starting Scraping: Single call per concept/language (max 50 results) --- ")
+def scrape_individual_terms_concurrently(concepts_data: dict):
+    """Scrapes patents concurrently for each individual term (max 5 workers), getting up to 50 results per term."""
+    print(f"\n--- Starting Concurrent Scraping: Individual terms (max 5 workers, max 50 results/term) ---")
     all_patents = []
     seen_patent_ids = set()
     total_api_calls = 0
-    RESULTS_PER_CALL = '50' # Define num value
+    RESULTS_PER_CALL = '50'
+    MAX_WORKERS = 5
 
     if not SCRAPINGDOG_API_KEY:
         print("Scraping skipped: SCRAPINGDOG_API_KEY not configured.")
-        return [], total_api_calls
+        return [], 0
 
-    for concept_desc, languages in concepts_data.items():
-        print(f"Scraping for Concept: '{concept_desc}'")
-        for lang, terms in languages.items():
-            if not terms:
-                 print(f"  Skipping {lang} for concept '{concept_desc}' - no terms provided.")
-                 continue
-                 
-            # Removed term chunking
-            
-            # Create the full OR query string for this language
-            or_query = " OR ".join(f'"{term}"' for term in terms) # Enclose terms in quotes for safety
-            print(f"  Language {lang}: Querying ({or_query}) for page 0, num={RESULTS_PER_CALL}")
+    # --- Extract all individual terms --- 
+    all_individual_terms = []
+    if concepts_data:
+        for lang_dict in concepts_data.values():
+            for terms_list in lang_dict.values():
+                all_individual_terms.extend(terms_list)
+        # Remove duplicates 
+        all_individual_terms = sorted(list(set(all_individual_terms)))
+    
+    if not all_individual_terms:
+        print("No individual terms found to scrape.")
+        return [], 0
+        
+    print(f"Found {len(all_individual_terms)} unique individual terms to scrape concurrently.")
 
-            # Removed page loop - make only one call per lang/concept
-            page_num = 0
+    # --- Define worker function --- 
+    def scrape_single_term(term):
+        # print(f"  Queueing scrape for term: '{term}'") # Can be verbose
+        result = call_scrapingdog_api(term, 0, num=RESULTS_PER_CALL)
+        return term, result # Return term for context in results processing
+
+    # --- Execute concurrently --- 
+    futures_map = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        # Map future to term for easier error reporting
+        futures_map = {executor.submit(scrape_single_term, term): term for term in all_individual_terms}
+        print(f"Submitted {len(futures_map)} scraping tasks to {MAX_WORKERS} workers.")
+        
+        # Process results as they complete
+        for future in concurrent.futures.as_completed(futures_map):
             total_api_calls += 1
-            # Call API with num=RESULTS_PER_CALL
-            result_data = call_scrapingdog_api(or_query, page_num, num=RESULTS_PER_CALL) 
-
-            # --- Process results --- 
-            if isinstance(result_data, dict) and result_data.get("error"):
-                print(f"    Skipping results for concept='{concept_desc}', lang={lang} due to API error: {result_data['error']}")
-                continue 
-
-            if isinstance(result_data, dict) and result_data.get("organic_results") and isinstance(result_data["organic_results"], list):
-                page_results_count = len(result_data['organic_results'])
-                print(f"    Found {page_results_count} results.")
-                new_patents_on_page = 0
-                for patent in result_data["organic_results"]:
-                    if isinstance(patent, dict):
-                        patent_id = patent.get("patent_id")
-                        if patent_id and patent_id not in seen_patent_ids:
-                            url_id_part = patent_id.replace("patent/", "")
-                            url = f"https://patents.google.com/patent/{url_id_part}"
-                            patent['url'] = url
-                            all_patents.append(patent)
-                            seen_patent_ids.add(patent_id)
-                            new_patents_on_page += 1
-                print(f"      Added {new_patents_on_page} new unique patents from this call.")
-            else:
-                print(f"    No 'organic_results' list found or unexpected format for concept='{concept_desc}', lang={lang}.")
-            # --- End result processing ---
-            
-            time.sleep(0.5) # Delay between API calls for different languages/concepts
+            term = futures_map[future] # Get term associated with this future
+            try:
+                term_from_result, result_data = future.result() # Get result from the future
                 
-    print(f"--- Scraping Finished --- ")
-    print(f"Total ScrapingDog API calls made: {total_api_calls}")
+                # --- Process results --- 
+                if isinstance(result_data, dict) and result_data.get("error"):
+                    print(f"    Term '{term}': API Error - {result_data.get('error')}") # Use .get for safety
+                    continue 
+
+                if isinstance(result_data, dict) and result_data.get("organic_results") and isinstance(result_data["organic_results"], list):
+                    page_results_count = len(result_data['organic_results'])
+                    new_patents_on_page = 0
+                    for patent in result_data["organic_results"]:
+                        if isinstance(patent, dict):
+                            patent_id = patent.get("patent_id")
+                            if patent_id and patent_id not in seen_patent_ids:
+                                url_id_part = patent_id.replace("patent/", "")
+                                url = f"https://patents.google.com/patent/{url_id_part}"
+                                patent['url'] = url
+                                all_patents.append(patent)
+                                seen_patent_ids.add(patent_id)
+                                new_patents_on_page += 1
+                    if new_patents_on_page > 0:
+                         print(f"      Added {new_patents_on_page} new unique patents from term '{term}'.")
+                    # Optional: Print if 0 results found for a term
+                    # elif page_results_count == 0:
+                    #     print(f"    Term '{term}': Found 0 results.")
+                else:
+                    # This case might happen for successful calls with zero results or unexpected format
+                    if not (isinstance(result_data, dict) and result_data.get("error")):
+                        print(f"    Term '{term}': No organic results found or unexpected format.")
+                # --- End result processing ---
+                
+            except Exception as exc:
+                print(f"    Scraping task for term '{term}' generated an exception: {exc}")
+                # print(traceback.format_exc()) # Optionally print full traceback
+
+    print(f"--- Concurrent Scraping Finished --- ")
+    print(f"Total ScrapingDog API calls attempted: {total_api_calls} (for {len(all_individual_terms)} terms)")
     print(f"Total unique patents collected: {len(all_patents)}")
     return all_patents, total_api_calls
 
@@ -488,7 +510,6 @@ def generate_keyword_report(job_id: str, description_text: str):
     print("\n--- Stage 1: Generating Keywords ---")
     languages_str = ", ".join(LANGUAGES)
     
-    # --- Restore and Enhance Keyword Prompt --- 
     keyword_prompt = f"""
     Act as a world-class patent search expert specializing in multilingual keyword analysis.
     Analyze the following invention description provided at the end.
@@ -500,7 +521,7 @@ def generate_keyword_report(job_id: str, description_text: str):
     1.  **Identify Core Concepts:** Thoroughly analyze the invention description to identify the distinct core technical concepts or inventive ideas.
     2.  **Generate Diverse Native Terms (All Languages):** For EACH core concept identified, generate the **most effective set of natural search terms or short phrases** in EACH of the following languages: {languages_str}. 
         *   **Address Term Variation:** Critically consider synonyms, related terms, and alternative phrasings commonly used in patent language for that concept in that specific language. Generate the terms necessary to capture these variations effectively. Think like a human searcher who refines their search by seeing how others describe the topic. Frequently something is described as a "foo" in one patent and as a "bar" in a different source. We need to capture those variations.
-        *   **Native Focus:** Prioritize the best *native* term/phrase for the concept in that language, not just literal translations.
+        *   **Native Focus:** Prioritize the best *native* term/phrase for the concept in that language, not just literal translations. **IMPORTANT: For languages not using the Latin alphabet (e.g., Mandarin, Japanese, Korean), provide the terms *only* in their native script. DO NOT include Romanized transliterations in parentheses or brackets.**
     3.  **Analyze and Group:** Compare all the native terms generated. Group together terms from different languages ONLY IF they represent the **exact same core concept**. Assign a clear description to each multi-language concept group.
     4.  **Isolate Unique Terms:** Identify native terms representing concepts/nuances specific to fewer languages or without precise equivalents elsewhere. These should NOT be grouped.
     5.  **Format Output:** Structure the report using the STRICT format below. Clearly separate grouped concepts from unique terms. *Within each concept group, list ALL generated terms for each language.*
@@ -554,28 +575,25 @@ def generate_keyword_report(job_id: str, description_text: str):
         return keyword_report_md
         
     # --- Stage 2: Scraping & Initial Analysis --- 
-    print("\n--- Stage 2: Scraping (OR Queries) & Initial Prior Art Analysis (Snippets) ---") 
-    prior_art_analysis_md = "\n\n---\n\n## Prior Art Relevance Analysis (Initial - Based on Snippets)\n\nAnalysis could not be performed. Check logs for parsing or scraping errors.\n" # Default
-    deep_dive_reports_md = "\n\n---\n\n## Detailed Prior Art Analysis (Based on Full PDFs)\n\nDeep dive analysis skipped due to errors in previous stages or lack of relevant patents found initially.\n" # Default
+    print("\n--- Stage 2: Concurrent Scraping & Initial Prior Art Analysis --- ") 
+    # Default messages initialization
+    prior_art_analysis_md = "\n\n---\n\n## Prior Art Relevance Analysis (Initial - Based on Snippets)\n\nAnalysis could not be performed. Check logs for parsing or scraping errors.\n" 
+    deep_dive_reports_md = "\n\n---\n\n## Detailed Prior Art Analysis (Based on Full PDFs)\n\nDeep dive analysis skipped due to errors in previous stages or lack of relevant patents found initially.\n" 
     top_patents_for_deep_dive = []
     scraped_patents_dict = {} 
+    scraped_patents_list = [] # Initialize scraped_patents_list
+    api_calls_made = 0 # Initialize api_calls_made
     
     all_concepts_data = parse_all_concept_data(keyword_report_md)
-    concept_descriptions = list(all_concepts_data.keys())
-    all_terms_to_scrape = [] 
+    concept_descriptions = list(all_concepts_data.keys()) # Keep for context
+    
+    # Check if concepts were parsed before attempting scraping
     if all_concepts_data:
-        for terms_list in all_concepts_data.values():
-             all_terms_to_scrape.extend(terms_list)
-        all_terms_to_scrape = sorted(list(set(all_terms_to_scrape)))
-        print(f"Combined unique terms from all concepts for scraping: {len(all_terms_to_scrape)}")
-    else:
-        print("No cross-lingual concepts/terms found for scraping.")
-
-    if all_terms_to_scrape: 
-        scraped_patents_list, api_calls_made = scrape_concepts_with_or(all_concepts_data)
+        # Call the new concurrent scraping function
+        scraped_patents_list, api_calls_made = scrape_individual_terms_concurrently(all_concepts_data)
         
         if scraped_patents_list:
-             # --- Populate dictionary with NORMALIZED IDs as keys --- 
+             # Populate dictionary
              normalized_keys_count = 0
              for p_data in scraped_patents_list:
                  if isinstance(p_data, dict):
@@ -587,56 +605,69 @@ def generate_keyword_report(job_id: str, description_text: str):
                      else:
                           print(f"Warning: Could not normalize patent ID: {raw_patent_id}")
              print(f"Populated scraped_patents_dict with {normalized_keys_count} entries using normalized keys.")
-             # --- End dictionary population --- 
             
+             # Perform initial analysis
              initial_analysis_md = call_gemini_for_prior_art(description_text, concept_descriptions, scraped_patents_list)
             
              if initial_analysis_md and not initial_analysis_md.startswith("# Error"):
-                prior_art_analysis_md = initial_analysis_md
-                print("Parsing initial analysis report for top patents...")
-                parsed_ids_raw = re.findall(r"^\*\*\d+\.\s+((?:patent/)?\S+)\s+-", initial_analysis_md, re.MULTILINE)
-                
-                # --- Normalize parsed IDs for lookup --- 
-                top_patent_ids_normalized = []
-                if parsed_ids_raw:
-                     print(f"DEBUG: Raw parsed IDs from analysis: {parsed_ids_raw}") 
-                     for raw_id in parsed_ids_raw:
-                          normalized_id = normalize_patent_id(raw_id) # Use the same normalization
-                          if normalized_id:
-                               top_patent_ids_normalized.append(normalized_id)
+                 prior_art_analysis_md = initial_analysis_md
+                 print("Parsing initial analysis report for top patents...")
+                 # Safely parse IDs using regex
+                 try:
+                     parsed_ids_raw = re.findall(r"^\*\*\d+\.\s+((?:patent/)?\S+)\s+-", initial_analysis_md, re.MULTILINE)
+                 except Exception as re_err:
+                     print(f"Warning: Regex error parsing top patents: {re_err}")
+                     parsed_ids_raw = []
+                 
+                 top_patent_ids_normalized = []
+                 if parsed_ids_raw:
+                      # print(f"DEBUG: Raw parsed IDs from analysis: {parsed_ids_raw}") 
+                      for raw_id in parsed_ids_raw:
+                           normalized_id = normalize_patent_id(raw_id) 
+                           if normalized_id:
+                                top_patent_ids_normalized.append(normalized_id)
+                           else:
+                                print(f"Warning: Could not normalize parsed ID: {raw_id}")
+                      print(f"Found {len(top_patent_ids_normalized)} top patent IDs (normalized) for deep dive.") # Removed list for brevity
+                 
+                 if top_patent_ids_normalized:
+                     # Retrieve data using normalized keys, checking existence
+                     top_patents_for_deep_dive = []
+                     missing_ids = []
+                     for pid in top_patent_ids_normalized:
+                          if pid in scraped_patents_dict:
+                               top_patents_for_deep_dive.append(scraped_patents_dict[pid])
                           else:
-                               print(f"Warning: Could not normalize parsed ID: {raw_id}")
-                     print(f"Found {len(top_patent_ids_normalized)} top patent IDs (normalized) for deep dive: {top_patent_ids_normalized}")
-                # --- End normalization --- 
-                
-                if top_patent_ids_normalized:
-                    # --- Use normalized IDs for lookup --- 
-                    top_patents_for_deep_dive = [scraped_patents_dict[pid] for pid in top_patent_ids_normalized if pid in scraped_patents_dict]
-                    # --- End lookup --- 
-                    retrieved_count = len(top_patents_for_deep_dive)
-                    expected_count = len(top_patent_ids_normalized)
-                    print(f"Retrieved full data for {retrieved_count}/{expected_count} patents.")
-                    if retrieved_count < expected_count:
-                         print("WARNING: Not all parsed top patents were found in the scraped data dictionary. Check normalized IDs and dictionary keys.")
-                         missing_ids = [pid for pid in top_patent_ids_normalized if pid not in scraped_patents_dict]
-                         print(f"Missing Normalized IDs: {missing_ids}")
-                else:
-                    print("Could not parse/normalize top patent IDs from the initial analysis markdown.")
-             else: # Handle failure of initial analysis call 
-                prior_art_analysis_md = f"\n\n---\n\n## Prior Art Relevance Analysis (Initial - Based on Snippets)\n\nInitial analysis failed. Error: {initial_analysis_md}"
-        else: # Handle case where scraping yielded no results
-             prior_art_analysis_md = f"\n\n---\n\n## Prior Art Relevance Analysis (Initial - Based on Snippets)\n\nNo patent results were found after scraping based on the terms generated for the keyword concepts.\n"
-    else: # Handle case where no terms were parsed for scraping
+                               missing_ids.append(pid)
+                               
+                     retrieved_count = len(top_patents_for_deep_dive)
+                     expected_count = len(top_patent_ids_normalized)
+                     print(f"Retrieved full data for {retrieved_count}/{expected_count} patents.")
+                     if missing_ids:
+                          print("WARNING: Not all parsed top patents were found in the scraped data dictionary.")
+                          print(f"Missing Normalized IDs: {missing_ids}")
+                 else:
+                     print("Could not parse/normalize top patent IDs from the initial analysis markdown.")
+             else: 
+                 # Handle failure of initial analysis call - update default message
+                 error_info = initial_analysis_md if initial_analysis_md else "(Unknown Error)"
+                 prior_art_analysis_md = f"\n\n---\n\n## Prior Art Relevance Analysis (Initial - Based on Snippets)\n\nInitial analysis failed. Error: {error_info}"
+        else: 
+             # Handle case where scraping yielded no results - update default message
+             prior_art_analysis_md = f"\n\n---\n\n## Prior Art Relevance Analysis (Initial - Based on Snippets)\n\nNo patent results were found after scraping {api_calls_made} terms concurrently.\n"
+    else: 
+        # Handle case where no terms were parsed - update default message
+        print("No cross-lingual concepts/terms found. Skipping scraping and analysis.")
         prior_art_analysis_md = "\n\n---\n\n## Prior Art Relevance Analysis (Initial - Based on Snippets)\n\nCould not parse any search terms from the keyword report. Unable to perform scraping or analysis.\n"
         
     # --- Stage 3: PDF Deep Dive Analysis --- 
-    print(f"\n--- Stage 3: PDF Deep Dive Analysis for {len(top_patents_for_deep_dive)} Top Patents ---")
+    print(f"\n--- Stage 3: PDF Deep Dive Analysis for {len(top_patents_for_deep_dive)} Top Patents --- ")
     deep_dive_results = []
     if top_patents_for_deep_dive:
         for i, patent_data in enumerate(top_patents_for_deep_dive):
              patent_id = patent_data.get('patent_id', f'Unknown_{i+1}')
              pdf_suffix = patent_data.get('pdf')
-             print(f"\nProcessing Deep Dive for: {patent_id} (PDF Suffix: {pdf_suffix})")
+             print(f"\nProcessing Deep Dive for: {patent_id} (PDF Suffix: {pdf_suffix}) [{i+1}/{len(top_patents_for_deep_dive)}]")
              
              if not pdf_suffix:
                  print("  Skipping deep dive: No PDF suffix found in scraped data.")
@@ -652,10 +683,12 @@ def generate_keyword_report(job_id: str, description_text: str):
                  deep_dive_results.append(f"### Detailed Analysis for {patent_id}\n\nSkipped: Failed to download or process PDF from Google Storage.\n")
         
         if deep_dive_results:
+             # Update default message only if results exist
             deep_dive_reports_md = "\n\n---\n\n## Detailed Prior Art Analysis (Based on Full PDFs of Top Patents)\n\n" + "\n\n---\n\n".join(deep_dive_results)
-
+        # else: keep default message if no results were generated
     else:
         print("Skipping deep dive analysis as no top patents were identified or retrieved from the initial analysis.")
+        # Keep default deep_dive_reports_md message
 
     # --- Stage 4: Combine All Reports --- 
     print("\n--- Stage 4: Combining Reports ---")
