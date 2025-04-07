@@ -6,10 +6,13 @@ import uuid
 import threading
 from dotenv import load_dotenv
 
-load_dotenv() # Load GOOGLE_API_KEY from .env
+load_dotenv() # Load GOOGLE_API_KEY and potentially LOCAL from .env
 
 app = Flask(__name__) # Needs templates folder
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24))
+
+# Check if running in local mode
+IS_LOCAL = os.environ.get('LOCAL', 'false').lower() == 'true'
 
 # Simple in-memory storage for job status and results
 job_results = {}
@@ -35,30 +38,38 @@ def index():
         description_text = request.form.get('invention_description')
         if not description_text:
             flash('Please paste the invention description text.', 'error')
-            return render_template('kw_index.html') # Use new template name
+            return render_template('kw_index.html')
 
         job_id = str(uuid.uuid4())
         job_results[job_id] = 'processing'
 
+        # Pass the description from the form to the background job
         thread = threading.Thread(target=run_keyword_generation_in_background, args=(job_id, description_text))
         thread.start()
 
         return redirect(url_for('result', job_id=job_id))
 
     # GET request
-    # Read content from spec.txt to pre-populate the textarea
-    existing_spec = ""
-    # Define the path to spec.txt relative to the app's location
-    spec_file_path = "spec.txt" 
-    if os.path.exists(spec_file_path):
-        try:
-            with open(spec_file_path, 'r') as f:
-                existing_spec = f.read()
-                print(f"Pre-populated keyword text area from {spec_file_path}")
-        except Exception as e:
-             print(f"Could not read existing {spec_file_path} for pre-population: {e}")
-             
-    return render_template('kw_index.html', current_spec=existing_spec) # Use new template name
+    existing_spec = "" # Default to empty
+    
+    # Only pre-populate if LOCAL=true is set in .env
+    if IS_LOCAL:
+        print("Local mode detected (LOCAL=true). Attempting to pre-populate from spec.txt...")
+        spec_file_path = "spec.txt"
+        if os.path.exists(spec_file_path):
+            try:
+                with open(spec_file_path, 'r', encoding='utf-8') as f: # Specify encoding
+                    existing_spec = f.read()
+                    print(f"Pre-populated keyword text area from {spec_file_path}")
+            except Exception as e:
+                 print(f"Could not read existing {spec_file_path} for pre-population: {e}")
+        else:
+             print(f"spec.txt not found, leaving text area empty.")
+    else:
+        print("Non-local mode (LOCAL is not 'true'). Text area will be empty by default.")
+
+    # Pass the potentially pre-populated content to the template
+    return render_template('kw_index.html', current_spec=existing_spec)
 
 @app.route('/result/<job_id>')
 def result(job_id):
@@ -111,4 +122,5 @@ if __name__ == '__main__':
     create_template_if_not_exists('templates/kw_processing.html', PROCESSING_KW_TEMPLATE)
     create_template_if_not_exists('templates/kw_result.html', RESULT_KW_TEMPLATE)
          
+    print(f"Running Flask app in {'Local' if IS_LOCAL else 'Non-Local'} mode.")
     app.run(debug=True, port=5001, threaded=True) # Run on a different port (5001) 

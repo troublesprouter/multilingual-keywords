@@ -1,138 +1,135 @@
 import requests
-from bs4 import BeautifulSoup
 import sys
-import time
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import WebDriverException
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
+import os
+import json # Added for JSON handling
+import traceback
+from dotenv import load_dotenv # Added for .env handling
 
-def scrape_google_patents(url):
+# --- Removed Selenium and Playwright Imports ---
+
+
+def scrape_google_patents_api(api_key: str, query: str, page: int = 0):
     """
-    Attempts to scrape the content of a Google Patents URL using Selenium
-    with explicit waits and a headed browser.
+    Scrapes Google Patents using the ScrapingDog API.
 
     Args:
-        url (str): The URL of the Google Patents search results page.
+        api_key (str): Your ScrapingDog API key.
+        query (str): The search query.
+        page (int): The results page number (0-indexed).
 
     Returns:
-        str: A string containing basic scraped information or an error message.
+        dict or str: The parsed JSON response from the API or an error message string.
     """
-    # Headers are less critical with Selenium but kept for reference
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    api_endpoint = "https://api.scrapingdog.com/google_patents"
+    params = {
+        'api_key': api_key,
+        'query': query,
+        'page': str(page) # API expects page as string
+        # Add other parameters here if needed, e.g., 'num': '20'
     }
 
-    driver = None # Initialize driver to None
+    print(f"Attempting API request for query='{query}', page={page}")
+
     try:
-        print(f"Attempting to fetch URL using Selenium (Headed Browser): {url}")
+        response = requests.get(api_endpoint, params=params, timeout=60) # Added timeout
+        response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
 
-        # --- Selenium Setup ---
-        options = Options()
-        # options.add_argument('--headless') # Removed for headed browsing
-        options.add_argument('--no-sandbox') # Often needed in containerized/CI environments
-        options.add_argument('--disable-dev-shm-usage') # Overcome limited resource problems
-        options.add_argument(f'user-agent={headers["User-Agent"]}') # Set user agent
-        options.add_argument("--window-size=1920,1080") # Specify window size
-        options.add_argument("--disable-gpu") # Sometimes needed for headless
+        print(f"API request successful (Status: {response.status_code})")
+        try:
+            # Attempt to parse JSON
+            data = response.json()
+            return data
+        except json.JSONDecodeError:
+            error_message = f"API Error: Failed to decode JSON response. Response text: {response.text[:500]}..."
+            print(error_message)
+            return {"error": error_message, "status_code": response.status_code}
 
-        # Assumes chromedriver executable is in the system's PATH.
-        # If not, specify the path:
-        # from selenium.webdriver.chrome.service import Service
-        # service = Service('/path/to/chromedriver')
-        # driver = webdriver.Chrome(service=service, options=options)
-        driver = webdriver.Chrome(options=options)
-        wait = WebDriverWait(driver, 20) # Wait up to 20 seconds
-
-        driver.get(url)
-
-        # --- Use Explicit Wait --- 
-        # Wait for the first actual result item to be VISIBLE.
-        first_result_locator = (By.CSS_SELECTOR, "#resultsContainer search-result-item") 
-        print(f"Waiting for element {first_result_locator} to be visible...")
-        wait.until(EC.visibility_of_element_located(first_result_locator))
-        print("First result item is visible. Waiting longer for potential JS rendering...")
-        time.sleep(5) # Increased extra wait after element is visible
-        
-        page_source = driver.page_source
-        print(f"Successfully fetched URL and obtained page source using Selenium.")
-
-        if not page_source:
-             return "Error: Failed to get page source using Selenium."
-
-        # --- Parsing with BeautifulSoup (using Selenium's result) ---
-        soup = BeautifulSoup(page_source, 'html.parser')
-
-        # Get the page title
-        title = soup.title.string.strip() if soup.title else "No title found"
-
-        # Get text content - try finding a more specific container if possible,
-        # otherwise fall back to body. Google Patents structure can change.
-        # The explicit wait should make finding resultsContainer more reliable.
-        results_container = soup.find('div', id='resultsContainer') # Example potential container
-        main_content = results_container or soup.find('body')
-
-        text_content = "No relevant text content found"
-        if main_content:
-            # Extract text, join parts with spaces, remove extra whitespace, take first 2000 chars
-            text_content = " ".join(main_content.get_text(separator=' ', strip=True).split())[:2000] + "..."
-
-        # --- Output ---
-        output = f"""--- Scraped Content (Selenium - Headed & Explicit Wait) ---
-URL: {url}
-Page Title: {title}
-
-Sample Text Content (first 2000 chars):
-{text_content}
------------------------"""
-        return output
-
-    except WebDriverException as e:
-        error_message = f"Selenium WebDriver Error: {e}"
+    except requests.exceptions.Timeout:
+        error_message = f"API Error: Request timed out for page {page}."
         print(error_message)
-        print("Ensure WebDriver (e.g., chromedriver) is installed, compatible with your Chrome version, and in your system's PATH or specified correctly.")
-        return error_message
-    except Exception as e: # Catch broader exceptions including TimeoutException from wait
-        error_message = f"An unexpected error occurred: {e}"
+        return {"error": error_message}
+    except requests.exceptions.HTTPError as e:
+        error_message = f"API Error: HTTP Error: {e.response.status_code} {e.response.reason} for page {page}. Response: {e.response.text[:500]}..."
         print(error_message)
-        if isinstance(e, TimeoutException):
-            error_message += f" (Element {first_result_locator} did not appear within the time limit)"
-        # Include info if driver was initialized, helping debug
-        if driver: error_message += " (Selenium driver was active)"
-        return error_message
-    finally:
-        # Ensure the browser is closed even if errors occur
-        if driver:
-            print("Closing Selenium WebDriver.")
-            driver.quit()
+        return {"error": error_message, "status_code": e.response.status_code}
+    except requests.exceptions.RequestException as e:
+        error_message = f"API Error: A request exception occurred for page {page}: {e}"
+        print(error_message)
+        return {"error": error_message}
+    except Exception as e:
+        error_message = f"An unexpected error occurred during API call for page {page}: {e}\n{traceback.format_exc()}"
+        print(error_message)
+        return {"error": error_message}
 
 if __name__ == "__main__":
-    # The URL provided in the query
-    target_url = "https://patents.google.com/?q=%E5%8F%AF%E4%BA%92%E6%8F%9B%E7%87%83%E6%96%99%E7%BB%84%E4%BB%B6"
+    # Load environment variables from .env file
+    load_dotenv()
+    api_key = os.getenv("SCRAPINGDOG_API_KEY")
 
-    # Allow overriding URL via command line argument
+    if not api_key:
+        print("Error: SCRAPINGDOG_API_KEY not found in environment variables or .env file.")
+        print("Please create a .env file in the same directory as the script with:")
+        print("SCRAPINGDOG_API_KEY=YOUR_API_KEY")
+        sys.exit(1)
+
+    # Patent query
+    patent_query = "可互换燃料组件"
+
+    # Allow overriding the query via command line argument (optional)
     if len(sys.argv) > 1:
-        target_url = sys.argv[1]
-        print(f"Using URL from command line argument: {target_url}")
+        patent_query = sys.argv[1]
+        print(f"Using query from command line argument: {patent_query}")
 
-    scraped_data = scrape_google_patents(target_url)
-    
-    # Write output to scrape.txt
+    # Define the pages to scrape
+    pages_to_scrape = [0, 1]
+
+    all_results_data = {}
+
+    # --- Execute the scrape using ScrapingDog API ---
+    print(f"\nStarting scrape using ScrapingDog API for query: '{patent_query}'")
+    for page_num in pages_to_scrape:
+        print(f"\n--- Scraping Page {page_num} ---")
+        result_data = scrape_google_patents_api(api_key, patent_query, page=page_num)
+        all_results_data[f"page_{page_num}"] = result_data
+        print("-" * 20)
+
+    # --- Output Combined JSON Results ---
     output_filename = "scrape.txt"
+    print(f"\n--- All Scraping Attempts Completed ---")
     try:
         with open(output_filename, 'w', encoding='utf-8') as f:
-            f.write(scraped_data)
-        print(f"\nScraping results saved to {output_filename}")
+            # Write the combined results as a single JSON object
+            json.dump(all_results_data, f, ensure_ascii=False, indent=4)
+        print(f"Combined scraping results saved as JSON to {output_filename}")
     except Exception as e:
-        print(f"\nError writing results to {output_filename}: {e}")
+        print(f"\nError writing combined JSON results to {output_filename}: {e}")
 
-    # Print disclaimer to console
+    # Optional: Print summary or confirmation to console
+    print("\n--- Results Summary (Saved to scrape.txt) ---")
+    if f"page_0" in all_results_data and isinstance(all_results_data["page_0"], dict) and "organic_results" in all_results_data["page_0"]:
+         print(f"Page 0: Found {len(all_results_data['page_0']['organic_results'])} organic results.")
+    elif f"page_0" in all_results_data and isinstance(all_results_data["page_0"], dict) and "error" in all_results_data["page_0"]:
+         print(f"Page 0: Error - {all_results_data['page_0']['error']}")
+    else:
+         print("Page 0: No results or unexpected format.")
+
+    if f"page_1" in all_results_data and isinstance(all_results_data["page_1"], dict) and "organic_results" in all_results_data["page_1"]:
+         print(f"Page 1: Found {len(all_results_data['page_1']['organic_results'])} organic results.")
+    elif f"page_1" in all_results_data and isinstance(all_results_data["page_1"], dict) and "error" in all_results_data["page_1"]:
+         print(f"Page 1: Error - {all_results_data['page_1']['error']}")
+    else:
+         print("Page 1: No results or unexpected format.")
+
+
+    # Print disclaimer
     print("\nDisclaimer:")
-    print("Web scraping, especially from dynamic sites like Google Patents, can be unreliable.")
-    print("The structure of the website may change, breaking the scraper.")
-    print("Always respect the website's terms of service (robots.txt).")
-    print("This script provides a basic example and may need significant adjustments")
-    print("to reliably extract specific data points from Google Patents.")
+    print("This script uses the ScrapingDog API to fetch Google Patents data.")
+    print("Ensure you have sufficient API credits.")
+    print("Refer to ScrapingDog documentation for API usage details and terms.")
+
+# --- Requirements Reminder ---
+# Ensure you have installed the necessary libraries:
+# pip3 install requests python-dotenv
+#
+# Also, create a .env file in this directory containing:
+# SCRAPINGDOG_API_KEY=YOUR_API_KEY
