@@ -373,8 +373,65 @@ def generate_keyword_report(description_text):
     # --- Stage 1: Keyword Generation --- 
     print("\n--- Stage 1: Generating Keywords ---")
     languages_str = ", ".join(LANGUAGES)
-    # Ensure the keyword prompt itself is correctly defined here (assuming it is)
-    keyword_prompt = f"""... [Existing Keyword Prompt Remains Here] ...""" # Placeholder
+    
+    # --- Modified Keyword Prompt --- 
+    keyword_prompt = f"""
+    Act as a world-class patent search expert specializing in multilingual keyword analysis.
+    Analyze the following invention description provided at the end.
+
+    **Background & Challenge:** Patent documents often use varied terminology. The same concept might be called a "foo" in one patent and a "bar" in another. Effective searching requires identifying multiple ways a concept might be described.
+
+    **Complex Task - Follow Carefully:**
+
+    1.  **Identify Core Concepts:** Thoroughly analyze the invention description to identify the distinct core technical concepts or inventive ideas.
+    2.  **Generate Diverse Native Terms (All Languages):** For EACH core concept identified, generate the **most effective set of natural search terms or short phrases** in EACH of the following languages: {languages_str}. 
+        *   **Address Term Variation:** Critically consider synonyms, related terms, and alternative phrasings commonly used in patent language for that concept in that specific language. Generate the terms necessary to capture these variations effectively. Think like a human searcher who refines their search by seeing how others describe the topic. Frequently something is described as a “foo” in one patent and as a “bar” in a different source. We need to capture those variations.
+        *   **Native Focus:** Prioritize the best *native* term/phrase for the concept in that language, not just literal translations.
+    3.  **Analyze and Group:** Compare all the native terms generated. Group together terms from different languages ONLY IF they represent the **exact same core concept**. Assign a clear description to each multi-language concept group.
+    4.  **Isolate Unique Terms:** Identify native terms representing concepts/nuances specific to fewer languages or without precise equivalents elsewhere. These should NOT be grouped.
+    5.  **Format Output:** Structure the report using the STRICT format below. Clearly separate grouped concepts from unique terms. *Within each concept group, list ALL generated terms for each language.*
+
+    **Output Format (Strict, Multi-Section Markdown):**
+    Use the following structure precisely. Ensure clean, standard Markdown.
+
+    ## Keyword Search Strategy Report
+
+    ### Core Concepts Identified
+    *   [Briefly describe Concept 1]
+    *   [Briefly describe Concept 2]
+    *   ...
+
+    ### Cross-Lingual Search Concepts
+
+    **Concept 1: [Concept 1 Description]**
+        *   English: `[Term 1a]`, `[Term 1b]` - [Search](https://patents.google.com/?q=URL_ENCODED(Term 1a OR Term 1b)) 
+        *   Mandarin: `[Term 1a]`, `[Term 1b]`, `[Term 1c]` - [Search](https://patents.google.com/?q=URL_ENCODED(Term 1a OR Term 1b OR Term 1c))
+        *   ... (List ALL languages for THIS concept, include ALL terms generated for each language)
+
+    **Concept 2: [Concept 2 Description]**
+        *   German: `[Term 2a]` - [Search](https://patents.google.com/?q=URL_ENCODED(Term 2a))
+        *   French: `[Term 2a]`, `[Term 2b]` - [Search](https://patents.google.com/?q=URL_ENCODED(Term 2a OR Term 2b))
+        *   ...
+
+    ... (Repeat for other grouped concepts)
+
+    ### Language-Specific or Nuanced Search Terms
+
+    *   Korean: `[Unique Term A]`, `[Unique Term B]` - [Search](https://patents.google.com/?q=URL_ENCODED(Unique Term A OR Unique Term B))
+    *   Spanish: `[Unique Term C]` - [Search](https://patents.google.com/?q=URL_ENCODED(Unique Term C))
+    *   ...
+
+    **Important Formatting Notes:**
+    *   Conceptual grouping must be accurate.
+    *   List unique terms clearly.
+    *   Provide multiple effective NATIVE terms per concept/language where appropriate, considering synonyms and variations.
+    *   **List all generated terms for a language together, separated by commas, within the backticks.**
+    *   **Search Link Construction:** For the search link, URL-encode the terms and combine them with " OR " (e.g., `term1%20OR%20term2`). Use parentheses within the query if necessary for complex boolean logic, but the basic OR is usually sufficient for a starting point.
+    *   Use standard Markdown list formatting.
+    *   Do NOT include triple backticks around the final output.
+
+    Invention description is attached below.
+    """
 
     keyword_report_md = call_gemini_for_keywords(keyword_prompt, description_text)
 
