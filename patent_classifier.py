@@ -34,7 +34,8 @@ PATENT_SPEC_FILE = "spec.txt"
 SCHEME_PDF_DIRECTORY = "pdfs/schemes" # Updated directory for scheme files
 DEFINITION_PDF_DIRECTORY = "pdfs/definitions" # New directory for definition files
 # MODEL_NAME = "models/gemini-2.0-flash-thinking-exp-01-21" # Using 2.0 Flash thinking model
-MODEL_NAME = "models/gemini-2.5-pro-preview-03-25"
+MODEL_NAME = "models/gemini-2.0-flash-lite" # Using 2.0 Flash lite model
+# MODEL_NAME = "models/gemini-2.5-pro-preview-03-25"
 MAX_RETRIES = 3
 RETRY_DELAY = 5 # seconds
 

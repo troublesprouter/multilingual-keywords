@@ -5,6 +5,7 @@ import os
 import uuid
 import threading
 from dotenv import load_dotenv
+import traceback
 
 load_dotenv() # Load GOOGLE_API_KEY and potentially LOCAL from .env
 
@@ -22,7 +23,8 @@ def run_keyword_generation_in_background(job_id, description_text):
     print(f"Starting background keyword job: {job_id}")
     report = ""
     try:
-        report = keyword_generator.generate_keyword_report(description_text)
+        # Pass job_id to the report generator
+        report = keyword_generator.generate_keyword_report(job_id, description_text)
         if not report:
              report = "Processing completed, but no keyword report was generated. Check console logs."
         print(f"Background keyword job {job_id} finished successfully.")
@@ -43,32 +45,44 @@ def index():
         job_id = str(uuid.uuid4())
         job_results[job_id] = 'processing'
 
-        # Pass the description from the form to the background job
+        # Pass job_id here as well
         thread = threading.Thread(target=run_keyword_generation_in_background, args=(job_id, description_text))
         thread.start()
 
         return redirect(url_for('result', job_id=job_id))
 
-    # GET request
-    existing_spec = "" # Default to empty
+    # --- GET Request Logic with Debugging --- 
+    print("--- Handling GET request for / --- ") # Debug
+    existing_spec = ""
     
-    # Only pre-populate if LOCAL=true is set in .env
-    if IS_LOCAL:
-        print("Local mode detected (LOCAL=true). Attempting to pre-populate from spec.txt...")
+    # Check the environment variable directly
+    local_env_var = os.environ.get('LOCAL', 'not_set')
+    print(f"DEBUG: Value of LOCAL env var: '{local_env_var}'") # Debug
+    is_local_check = local_env_var.lower() == 'true'
+    print(f"DEBUG: Result of is_local_check: {is_local_check}") # Debug
+    # Note: The global IS_LOCAL is also available, but checking here ensures scope
+
+    if is_local_check:
+        print("DEBUG: LOCAL=true condition met. Attempting to pre-populate from spec.txt...")
         spec_file_path = "spec.txt"
+        print(f"DEBUG: Checking for file at: {os.path.abspath(spec_file_path)}") # Debug: Show absolute path
         if os.path.exists(spec_file_path):
             try:
-                with open(spec_file_path, 'r', encoding='utf-8') as f: # Specify encoding
+                print("DEBUG: spec.txt found. Reading content...") # Debug
+                with open(spec_file_path, 'r', encoding='utf-8') as f:
                     existing_spec = f.read()
-                    print(f"Pre-populated keyword text area from {spec_file_path}")
+                print(f"DEBUG: Successfully read spec.txt. Content length: {len(existing_spec)}") # Debug
+                if not existing_spec:
+                     print("DEBUG: Warning - spec.txt was read but content is empty.") # Debug
             except Exception as e:
-                 print(f"Could not read existing {spec_file_path} for pre-population: {e}")
+                 print(f"ERROR: Could not read existing {spec_file_path}: {e}") # Changed to ERROR
+                 print(traceback.format_exc()) # Add traceback for reading errors
         else:
-             print(f"spec.txt not found, leaving text area empty.")
+             print(f"DEBUG: spec.txt not found at expected location.")
     else:
-        print("Non-local mode (LOCAL is not 'true'). Text area will be empty by default.")
+        print("DEBUG: LOCAL=true condition not met. Text area will be empty by default.")
 
-    # Pass the potentially pre-populated content to the template
+    print(f"DEBUG: Rendering kw_index.html with current_spec length: {len(existing_spec)}") # Debug
     return render_template('kw_index.html', current_spec=existing_spec)
 
 @app.route('/result/<job_id>')
