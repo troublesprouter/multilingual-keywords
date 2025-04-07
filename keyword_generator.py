@@ -25,7 +25,8 @@ if not SCRAPINGDOG_API_KEY:
     print("Warning: SCRAPINGDOG_API_KEY not found. Patent scraping will fail.")
 
 # --- Configuration ---
-MODEL_NAME = "models/gemini-2.0-flash-thinking-exp-01-21"
+# MODEL_NAME = "models/gemini-2.0-flash-thinking-exp-01-21"
+MODEL_NAME = "models/gemini-2.5-pro-preview-03-25"
 MAX_RETRIES = 3
 RETRY_DELAY = 5 # seconds
 LANGUAGES = ["English", "Mandarin", "Japanese", "Korean", "German", "French", "Spanish", "Italian"]
