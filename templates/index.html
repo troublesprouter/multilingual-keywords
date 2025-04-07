@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Patent CPC Classifier</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; background-color: #f8f9fa; color: #343a40; }
+        h1 { color: #212529; text-align: center; margin-bottom: 30px; font-weight: 300; }
+        textarea {
+            width: 98%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            font-size: 0.95rem;
+            min-height: 250px;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.075);
+        }
+        textarea:focus { border-color: #80bdff; outline: 0; box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25); }
+        #submitBtn {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s ease;
+            display: inline-block; /* Align with spinner */
+            vertical-align: middle; /* Align with spinner */
+        }
+        #submitBtn:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+        #submitBtn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .flash {
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid transparent;
+            border-radius: .25rem;
+        }
+        .flash.error { color: #721c24; background-color: #f8d7da; border-color: #f5c6cb; }
+        .flash.info { color: #004085; background-color: #cce5ff; border-color: #b8daff; }
+        label { font-weight: 600; display: block; margin-bottom: 8px; }
+        .form-container { background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .spinner {
+            display: none; /* Hidden by default */
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin-left: 10px; /* Space between button and spinner */
+            vertical-align: middle;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .helper-text {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-top: -10px; /* Adjust spacing */
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Patent CPC Classifier</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="form-container">
+        <form id="classifyForm" method="post">
+            <label for="patent_spec">Invention Description</label>
+            <textarea id="patent_spec" name="patent_spec" required placeholder="Paste relevant text describing the invention...">{{ current_spec | default('') }}</textarea>
+            <p class="helper-text">Tip: Use the abstract, summary, or detailed description for the most accurate CPC suggestions. Avoid pasting only claims.</p>
+            <button type="submit" id="submitBtn">Classify Patent</button>
+            <div class="spinner" id="loadingSpinner"></div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('classifyForm').addEventListener('submit', function() {
+            // Disable button and show spinner on form submission
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('submitBtn').textContent = 'Processing...';
+            document.getElementById('loadingSpinner').style.display = 'inline-block';
+            
+            // Basic simulation of progress - Not real progress tracking
+            // You might want more sophisticated UI updates if using WebSockets
+            // For now, this just visually indicates activity.
+        });
+    </script>
+
+</body>
+</html> 
