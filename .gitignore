@@ -77,4 +77,7 @@ dmypy.json
 .vscode/
 
 # Scraping output
-scrape.txt 
+scrape.txt
+
+# Added by user
+pdfs/ 

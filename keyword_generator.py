@@ -88,66 +88,55 @@ def generate_keyword_report(description_text):
     # Reverting to nested list prompt, emphasizing newlines and structure
     prompt = f"""
     Act as a world-class patent search expert specializing in multilingual keyword analysis.
-    Analyze the following invention description.
+    Analyze the following invention description provided at the end.
 
-    **Task:**
-    1.  Identify the core inventive concepts and key technical features.
-    2.  Generate a concise list of the **5-7 most effective and distinct English keyword search terms or short phrases** for finding prior art related to this invention.
-    3.  For each English keyword/phrase identified, provide translations into the following languages: {languages_str}.
-    4.  For **each keyword/phrase in EACH language (including English)**, provide a direct search link for **Google Patents**, using the **URL-encoded version of that specific language's term**.
+    **Complex Task - Follow Carefully:**
 
-    **Output Format (Strict Markdown List Format):**
-    Use the following structure exactly. Ensure excellent Markdown formatting (headings, bolding, lists, **newlines**, **proper indentation**) for a clean, professional, and highly readable report. Each language and its link MUST be on separate lines, clearly indented.
+    1.  **Identify Core Concepts:** Thoroughly analyze the invention description to identify the distinct core technical concepts or inventive ideas. These core concepts may appear in any language in the description and may not always have direct English equivalents or translations.
+    2.  **Generate Native Terms (All Languages):** For EACH core concept identified, generate the most effective and natural search term or short phrase in EACH of the following languages: {languages_str}. Focus on finding the best native term for the concept in that language, not just a literal translation from English.
+    3.  **Analyze and Group:** Compare all the native terms generated across all languages. Group together terms from different languages ONLY IF they represent the **exact same core concept**. Assign a clear description to each multi-language concept group.
+    4.  **Isolate Unique Terms:** Identify native terms that represent concepts or nuances specific to one or only a few languages, or terms that do not have precise conceptual equivalents in the other languages. These should NOT be included in the multi-language groups.
+    5.  **Format Output:** Structure the report using the STRICT format below. Clearly separate the grouped cross-lingual concepts from the unique/language-specific terms.
+
+    **Output Format (Strict, Multi-Section Markdown):**
+    Use the following structure precisely. Ensure clean, standard Markdown (lists, indentation, newlines) for readability.
 
     ## Keyword Search Strategy Report
 
-    ### Core Concepts
-    *   [Briefly list 2-3 core concepts identified]
+    ### Core Concepts Identified
+    *   [Briefly describe Concept 1]
+    *   [Briefly describe Concept 2]
+    *   ... (List all distinct concepts found)
 
-    ### Recommended Keywords, Translations & Search Links
+    ### Cross-Lingual Search Concepts
+    (List concepts found to have precise equivalents across multiple languages)
 
-    **1. [English Keyword/Phrase 1]**
-        *   **English:**
-            *   Term: `[English Keyword/Phrase 1]`
-            *   Google Patents: [Search](https://patents.google.com/?q=URL_ENCODED_ENGLISH_TERM_1)
-        *   **Mandarin:**
-            *   Term: `[Mandarin Translation 1]`
-            *   Google Patents: [Search](https://patents.google.com/?q=URL_ENCODED_MANDARIN_TERM_1)
-        *   **Japanese:**
-            *   Term: `[Japanese Translation 1]`
-            *   Google Patents: [Search](https://patents.google.com/?q=URL_ENCODED_JAPANESE_TERM_1)
-        *   **Korean:**
-            *   Term: `[Korean Translation 1]`
-            *   Google Patents: [Search](https://patents.google.com/?q=URL_ENCODED_KOREAN_TERM_1)
-        *   **German:**
-            *   Term: `[German Translation 1]`
-            *   Google Patents: [Search](https://patents.google.com/?q=URL_ENCODED_GERMAN_TERM_1)
-        *   **French:**
-            *   Term: `[French Translation 1]`
-            *   Google Patents: [Search](https://patents.google.com/?q=URL_ENCODED_FRENCH_TERM_1)
-        *   **Spanish:**
-            *   Term: `[Spanish Translation 1]`
-            *   Google Patents: [Search](https://patents.google.com/?q=URL_ENCODED_SPANISH_TERM_1)
-        *   **Italian:**
-            *   Term: `[Italian Translation 1]`
-            *   Google Patents: [Search](https://patents.google.com/?q=URL_ENCODED_ITALIAN_TERM_1)
+    **Concept 1: [Concept 1 Description from above]**
+        *   English: `[Native English Term for Concept 1]` - [Search](https://patents.google.com/?q=URL_ENCODED_ENGLISH_TERM_1)
+        *   Mandarin: `[Native Mandarin Term for Concept 1]` - [Search](https://patents.google.com/?q=URL_ENCODED_MANDARIN_TERM_1)
+        *   ... (List ALL languages where a term for THIS EXACT concept was generated)
 
-    **2. [English Keyword/Phrase 2]**
-        *   **English:**
-            *   Term: `[English Keyword/Phrase 2]`
-            *   Google Patents: [Search](https://patents.google.com/?q=URL_ENCODED_ENGLISH_TERM_2)
-        *   **Mandarin:**
-            *   Term: `[Mandarin Translation 2]`
-            *   Google Patents: [Search](https://patents.google.com/?q=URL_ENCODED_MANDARIN_TERM_2)
-        *   ... (Repeat for all languages and all English keywords, maintaining the clear nested list format with newlines and indentation)
+    **Concept 2: [Concept 2 Description from above]**
+        *   German: `[Native German Term for Concept 2]` - [Search](https://patents.google.com/?q=URL_ENCODED_GERMAN_TERM_2)
+        *   French: `[Native French Term for Concept 2]` - [Search](https://patents.google.com/?q=URL_ENCODED_FRENCH_TERM_2)
+        *   ... (List ALL languages where a term for THIS EXACT concept was generated)
 
-    ... (Continue for all English keywords)
+    ... (Repeat for other grouped concepts)
+
+    ### Language-Specific or Nuanced Search Terms
+    (List terms that are unique, nuanced, or did not have precise equivalents for grouping)
+
+    *   Korean: `[Native Korean Term representing a unique concept/nuance]` - [Search](https://patents.google.com/?q=URL_ENCODED_UNIQUE_KOREAN_TERM)
+    *   Spanish: `[Native Spanish Term representing a unique concept/nuance]` - [Search](https://patents.google.com/?q=URL_ENCODED_UNIQUE_SPANISH_TERM)
+    *   ... (List all such unique/nuanced terms with their language)
 
     **Important Formatting Notes:**
-    *   Replace `URL_ENCODED_LANG_TERM_X` with the **URL-encoded version** of the keyword/phrase **in that specific language**.
-    *   Provide accurate translations.
-    *   Use backticks (`) around the keyword/translation.
-    *   Ensure the final output is clean, well-structured Markdown using **appropriate nested lists, indentation, and placing each language on its own clearly marked line**.
+    *   Accurately perform the conceptual grouping. Only include terms in a group if they match the EXACT concept.
+    *   List ungrouped/unique terms clearly in the second section.
+    *   Provide the most effective NATIVE term for each concept in each listed language.
+    *   Replace `URL_ENCODED...` with the actual URL-encoded term for the Google Patents search link.
+    *   Use backticks (`) around all search terms/phrases.
+    *   Use standard Markdown list formatting with appropriate indentation (spaces) and newlines.
     *   Do NOT include triple backticks around the final output.
 
     Invention description is attached below.
