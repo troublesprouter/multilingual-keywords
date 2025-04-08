@@ -79,7 +79,6 @@ def call_gemini_with_retry(prompt, context_text=None, files=None, task_descripti
         try:
             print(f"Sending {task_description} request (Attempt {attempt + 1}/{MAX_RETRIES})...")
             start_time = time.time()
-            # Use the constructed content_parts list
             response = model.generate_content(
                 contents=content_parts,
                 generation_config=types.GenerationConfig(temperature=0.4),
@@ -90,12 +89,12 @@ def call_gemini_with_retry(prompt, context_text=None, files=None, task_descripti
 
             response_text = ""
             try:
-            if response.candidates and response.candidates[0].content.parts:
-                response_text = "".join(part.text for part in response.candidates[0].content.parts if hasattr(part, 'text'))
+                if response.candidates and response.candidates[0].content.parts:
+                    response_text = "".join(part.text for part in response.candidates[0].content.parts if hasattr(part, 'text'))
                 elif hasattr(response, 'parts') and response.parts:
-                response_text = "".join(part.text for part in response.parts if hasattr(part, 'text'))
+                    response_text = "".join(part.text for part in response.parts if hasattr(part, 'text'))
                 elif hasattr(response, 'text'):
-                     response_text = response.text
+                    response_text = response.text
             except AttributeError as e:
                  print(f"Warning: Could not extract text using standard methods. Response structure: {response}, Error: {e}")
 
