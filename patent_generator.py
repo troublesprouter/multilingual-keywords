@@ -163,6 +163,9 @@ After the main specification, append the following section:
 *   Key Assumptions or Areas Needing Clarification: [List any major assumptions made or areas where user input was ambiguous/lacking for description]
 
 ---
+**IMPORTANT:** Do not include any introductory remarks, conversational text, commentary, or preamble before starting the specification draft. Begin the output *directly* with the `## TITLE OF THE INVENTION:` section.
+---
+
 **Begin generation upon receiving user input context.**
 """
 
