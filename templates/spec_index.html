@@ -1,0 +1,71 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Patent Specification Drafter</title>
+<style>
+    body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; background-color: #f8f9fa; }
+    h1 { text-align: center; font-weight: 300; margin-bottom: 30px; }
+    label { font-weight: 600; display: block; margin-bottom: 5px; margin-top: 15px; }
+    input[type=text], textarea { width: 98%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem; }
+    textarea { min-height: 100px; }
+    textarea#detailed_description { min-height: 250px; /* Make required field larger */ }
+    .optional-label::after { content: " (Optional)"; font-weight: normal; color: #555; font-size: 0.9em; }
+    button { background-color: #007bff; color: white; padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; margin-top: 20px; }
+    button:hover:not(:disabled) { background-color: #0056b3; }
+    button:disabled { background-color: #6c757d; cursor: not-allowed; }
+    .form-container { background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .flash { padding: 1rem; margin-bottom: 1.5rem; border: 1px solid transparent; border-radius: .25rem; }
+    .flash.error { color: #721c24; background-color: #f8d7da; border-color: #f5c6cb; }
+    .spinner { display: none; /* Similar to kw_app */ }
+</style>
+</head><body>
+<h1>Patent Specification Drafter</h1>
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+<div class="form-container">
+  <form id="specForm" method="post">
+
+    <label for="detailed_description">Detailed Description of the Invention <span style="color:red; font-weight:bold;">*</span></label>
+    <textarea id="detailed_description" name="detailed_description" required placeholder="MOST CRITICAL PART. Be specific. Structure/Components? Operation/Function? Novel Features? Link to advantages.">{{ form_data.get('detailed_description', '') }}</textarea>
+
+    <hr style="margin: 25px 0;"> <!-- Optional separator -->
+
+    <label for="proposed_title" class="optional-label">Proposed Title</label>
+    <input type="text" id="proposed_title" name="proposed_title" value="{{ form_data.get('proposed_title', '') }}">
+
+    <label for="field_of_invention" class="optional-label">Field of the Invention</label>
+    <input type="text" id="field_of_invention" name="field_of_invention" placeholder="e.g., semiconductor manufacturing, medical devices" value="{{ form_data.get('field_of_invention', '') }}">
+
+    <label for="background_problem" class="optional-label">Background / Problem</label>
+    <textarea id="background_problem" name="background_problem" placeholder="Problem solved? Existing solutions & their drawbacks?">{{ form_data.get('background_problem', '') }}</textarea>
+
+    <label for="summary_idea" class="optional-label">Summary of the Invention (Core Idea)</label>
+    <textarea id="summary_idea" name="summary_idea" placeholder="Briefly, what is the invention? Key mechanism?">{{ form_data.get('summary_idea', '') }}</textarea>
+
+    <label for="advantages" class="optional-label">Advantages</label>
+    <textarea id="advantages" name="advantages" placeholder="Specific benefits over prior art? (e.g., faster, cheaper, more efficient)">{{ form_data.get('advantages', '') }}</textarea>
+
+    <label for="alternative_embodiments" class="optional-label">Alternative Embodiments & Variations</label>
+    <textarea id="alternative_embodiments" name="alternative_embodiments" placeholder="Other materials? Shapes? Configurations? Use cases? Optional features?">{{ form_data.get('alternative_embodiments', '') }}</textarea>
+
+    <hr style="margin: 25px 0;"> <!-- Optional separator -->
+
+    <label for="example_spec_style" class="optional-label">Example Specification Style</label>
+    <textarea id="example_spec_style" name="example_spec_style" placeholder="Paste the full text of a patent whose writing style, formatting, and section structure you'd like the AI to emulate.">{{ form_data.get('example_spec_style', '') }}</textarea>
+    <p class="helper-text">Tip: Providing an example patent helps the AI match your preferred drafting style. Ensure it's just text.</p>
+
+    <button type="submit" id="submitBtn">Draft Specification</button>
+    <div class="spinner" id="loadingSpinner"></div>
+  </form>
+</div>
+<script>
+    // Basic script to disable button on submit (similar to kw_app)
+    document.getElementById('specForm').addEventListener('submit', function() {
+        document.getElementById('submitBtn').disabled = true;
+        document.getElementById('submitBtn').textContent = 'Drafting...';
+        // Optional: show spinner
+    });
+</script>
+</body></html>

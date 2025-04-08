@@ -81,7 +81,7 @@ def call_gemini_with_retry(prompt, context_text=None, files=None, task_descripti
             start_time = time.time()
             # Use the constructed content_parts list
             response = model.generate_content(
-                contents=content_parts, 
+                contents=content_parts,
                 generation_config=types.GenerationConfig(temperature=0.4),
                 request_options={'timeout': 600} # Increased timeout for potentially large PDFs
             )
@@ -90,10 +90,10 @@ def call_gemini_with_retry(prompt, context_text=None, files=None, task_descripti
 
             response_text = ""
             try:
-                if response.candidates and response.candidates[0].content.parts:
-                    response_text = "".join(part.text for part in response.candidates[0].content.parts if hasattr(part, 'text'))
+            if response.candidates and response.candidates[0].content.parts:
+                response_text = "".join(part.text for part in response.candidates[0].content.parts if hasattr(part, 'text'))
                 elif hasattr(response, 'parts') and response.parts:
-                     response_text = "".join(part.text for part in response.parts if hasattr(part, 'text'))
+                response_text = "".join(part.text for part in response.parts if hasattr(part, 'text'))
                 elif hasattr(response, 'text'):
                      response_text = response.text
             except AttributeError as e:
@@ -526,64 +526,79 @@ def generate_keyword_report(job_id: str, description_text: str, focus_area: str 
         
     # --- Restore Full Prompt --- 
     keyword_prompt = f"""
-    Act as a world-class patent search expert specializing in multilingual keyword analysis.
+    Act as a world-class patent and non-patent literature search expert with deep experience in multilingual keyword and classification analysis. You possess a profound understanding of patent searching methodologies, including both keyword-based strategies and classification-based approaches. Your expertise extends to recognizing subtle variations in terminology across languages and technical domains.
+
     Analyze the following invention description provided at the end.{focus_instruction_kw}
 
-    **Background & Challenge:** Patent documents often use varied terminology. The same concept might be called a "foo" in one patent and a "bar" in another. Effective searching requires identifying multiple ways a concept might be described.
+    **Background & Challenge:** Patent documents and non-patent literature (NPL) exhibit significant terminological diversity.  A single technical concept can be described using a wide array of terms, synonyms, and phrasings.  Effective prior art searching, especially at a premium level, demands the ability to anticipate and generate this terminological breadth across multiple languages and information sources, including both patent and non-patent literature.  Relying on literal translations or simplistic keyword lists is insufficient for comprehensive discovery.
 
-    **Complex Task - Follow Carefully:**
+    **Complex Task - Execute with Expert Precision:**
 
-    1.  **Identify Core Concepts:** Thoroughly analyze the invention description to identify the distinct core technical concepts or inventive ideas, prioritizing those related to the user's focus area.
-    2.  **Generate Diverse Native Terms (All Languages):** For EACH core concept identified (especially those relevant to the focus area), generate the **most effective set of natural search terms or short phrases** in EACH of the following languages: {languages_str}. 
-        *   **Address Term Variation:** Critically consider synonyms, related terms, and alternative phrasings commonly used in patent language for that concept in that specific language. Generate the terms necessary to capture these variations effectively. Think like a human searcher who refines their search by seeing how others describe the topic. Frequently something is described as a "foo" in one patent and as a "bar" in a different source. We need to capture those variations.
-        *   **Native Focus:** Prioritize the best *native* term/phrase for the concept in that language, not just literal translations. **IMPORTANT: For languages not using the Latin alphabet (e.g., Mandarin, Japanese, Korean), provide the terms *only* in their native script. DO NOT include Romanized transliterations in parentheses or brackets.**
-    3.  **Analyze and Group:** Compare all the native terms generated. Group together terms from different languages ONLY IF they represent the **exact same core concept**. Assign a clear description to each multi-language concept group.
-    4.  **Isolate Unique Terms:** Identify native terms representing concepts/nuances specific to fewer languages or without precise equivalents elsewhere. These should NOT be grouped.
-    5.  **Format Output:** Structure the report using the STRICT format below. Clearly separate grouped concepts from unique terms. *Within each concept group, list ALL generated terms for each language.*
+    1.  **Deep Conceptual Decomposition:**  Thoroughly analyze the invention description to decompose it into its fundamental technical and functional concepts. Identify the core inventive ideas, the problems being solved, and the key advantages claimed. Prioritize concepts directly relevant to the user's focus area, but also consider broader related concepts that might be indirectly relevant. Think in terms of the underlying *technology* and *functionality*, not just the words used to describe it.
 
-    **Output Format (Strict, Multi-Section Markdown):**
-    Use the following structure precisely. Ensure clean, standard Markdown.
+    2.  **Multilingual Terminology Generation (Native and Nuanced):** For EACH core concept identified (especially those within the focus area), generate a comprehensive set of **native search terms and short phrases** in EACH of the following languages: {languages_str}.
+        *   **Term Variation Mastery:** Critically and expansively consider the full spectrum of synonyms, related terms, technical jargon, industry slang, alternative phrasings, and even misspellings or common abbreviations that might be used to describe the concept in patent documents and NPL *within each target language*. Generate terms that reflect the *terminological landscape* of the field.  Think beyond direct translations and capture the organic language used by experts and inventors in each linguistic context. Consider how the same concept might be described in patent claims, specifications, abstracts, titles, and different types of NPL (academic papers, technical manuals, product brochures, online forums, etc.).
+        *   **Classification Awareness (Implicit Term Generation):**  While generating terms, implicitly consider relevant patent classifications (IPC, CPC, USPC) associated with each concept.  Think about terms that are commonly used *within* those classifications, even if not explicitly stated in the invention description. This will help generate terms that are aligned with patent indexing practices.
+        *   **Native Linguistic Precision:** Prioritize the most effective *native* terms/phrases for each concept in each language. Avoid literal or overly simplistic translations. Focus on terms that would naturally be used by a native speaker in a technical context. **IMPORTANT: For languages not using the Latin alphabet (e.g., Mandarin, Japanese, Korean), provide terms *only* in their native script. Do NOT include Romanized transliterations.**
 
-    ## Keyword Search Strategy Report (Focus: {focus_area if focus_area else 'General'})
+    3.  **Cross-Lingual Concept Grouping (Rigorous Accuracy):**  Compare the generated native terms across all languages. Group together terms from different languages ONLY if they represent the **identical core technical concept with a high degree of precision**.  Err on the side of caution and *avoid* grouping terms that are only loosely related or have nuanced differences in meaning. Assign a concise and highly descriptive label to each multi-language concept group, capturing the essence of the shared concept.
 
-    ### Core Concepts Identified
-    *   [Briefly describe Concept 1 (related to focus)]
-    *   [Briefly describe Concept 2 (related to focus)]
-    *   ...
+    4.  **Language-Specific Nuance Isolation (Targeted Specificity):** Identify native terms that represent concepts, nuances, or technical specificities that are unique to certain languages or lack precise equivalents in others. These terms should **not** be grouped cross-lingually.  These often represent culturally or linguistically specific aspects of the technology.
 
-    ### Cross-Lingual Search Concepts
+    5.  **Structured Expert Report Output:** Structure the report using the STRICT format below. Clearly differentiate between cross-lingual concept groups and language-specific terms. *Within each concept group, meticulously list ALL generated terms for each language.*  The report should resemble the output of a highly skilled human search expert, providing a clear and actionable keyword strategy.
 
-    **Concept 1: [Concept 1 Description (related to focus)]**
-        *   English: `[Term 1a]`, `[Term 1b]` - [Search](https://patents.google.com/?q=URL_ENCODED(Term 1a OR Term 1b)) 
-        *   Mandarin: `[Term 1a]`, `[Term 1b]`, `[Term 1c]` - [Search](https://patents.google.com/?q=URL_ENCODED(Term 1a OR Term 1b OR Term 1c))
-        *   Japanese: `[Term 1a]` - [Search](https://patents.google.com/?q=URL_ENCODED(Term 1a))
-        *   Korean: `[Term 1a]`, `[Term 1b]` - [Search](https://patents.google.com/?q=URL_ENCODED(Term 1a OR Term 1b))
-        *   German: `[Term 1a]` - [Search](https://patents.google.com/?q=URL_ENCODED(Term 1a))
-        *   French: `[Term 1a]` - [Search](https://patents.google.com/?q=URL_ENCODED(Term 1a))
-        *   Spanish: `[Term 1a]` - [Search](https://patents.google.com/?q=URL_ENCODED(Term 1a))
-        *   Italian: `[Term 1a]` - [Search](https://patents.google.com/?q=URL_ENCODED(Term 1a))
-        *   ... (List ALL requested languages for THIS concept, include ALL terms generated for each language)
+    **Output Format (Strict, Multi-Section Markdown - Expert Report Style):**
+    Use the following structure precisely. Ensure clean, standard Markdown.  This is formatted like a professional prior art search report.
 
-    **Concept 2: [Concept 2 Description (related to focus)]**
-        *   English: `[Term 2a]` - [Search](https://patents.google.com/?q=URL_ENCODED(Term 2a))
-        *   Mandarin: `[Term 2a]`, `[Term 2b]` - [Search](https://patents.google.com/?q=URL_ENCODED(Term 2a OR Term 2b))
-        *   ...
+    ## Preliminary Keyword and Concept Strategy Report (Focus: {focus_area if focus_area else 'General'})
+    *For Patent and Non-Patent Literature Searching - Iterative Refinement Recommended*
 
-    ... (Repeat for other grouped concepts)
+    ### I. Core Technical Concepts Identified
+    This section outlines the key technical and functional concepts extracted from the invention description. These concepts form the foundation for the keyword search strategy.
 
-    ### Language-Specific or Nuanced Search Terms
+    *   [Briefly describe Concept 1 (related to focus) - focus on technical essence]
+    *   [Briefly describe Concept 2 (related to focus) - focus on technical essence]
+    *   ... (List all core concepts identified, prioritize those related to focus)
 
-    *   Korean: `[Unique Term A]`, `[Unique Term B]` - [Search](https://patents.google.com/?q=URL_ENCODED(Unique Term A OR Unique Term B))
-    *   Japanese: `[Unique Term C]` - [Search](https://patents.google.com/?q=URL_ENCODED(Unique Term C))
-    *   ...
+    ### II. Cross-Lingual Search Concept Groups
+    This section presents groups of search terms that represent the same core technical concept across multiple languages.  These term sets are designed for broad and effective searching in multilingual patent and non-patent literature databases.
 
-    **Important Formatting Notes:**
-    *   Conceptual grouping must be accurate.
-    *   List unique terms clearly.
-    *   Provide the most effective NATIVE terms per concept/language, considering synonyms and variations.
-    *   **List all generated terms for a language together, separated by commas, within the backticks.**
-    *   **Search Link Construction:** For the search link, URL-encode the terms and combine them with " OR " (e.g., `term1%20OR%20term2`). Use parentheses within the query if necessary for complex boolean logic, but the basic OR is usually sufficient for a starting point. Ensure proper encoding.
-    *   Use standard Markdown list formatting.
+    **Concept Group 1: [Concept 1 Descriptive Label (Precise and Technical)]**
+        *   *Description:* [1-2 sentence precise technical description of the concept]
+        *   English: `[Term 1a]`, `[Term 1b]`, `[Term 1c]`, ... (List ALL generated English terms, comma-separated within backticks)
+        *   Mandarin: `[Term 1a]`, `[Term 1b]`, `[Term 1c]`, ... (List ALL generated Mandarin terms in native script, comma-separated within backticks)
+        *   Japanese: `[Term 1a]`, `[Term 1b]`, ... (List ALL generated Japanese terms in native script, comma-separated within backticks)
+        *   Korean: `[Term 1a]`, `[Term 1b]`, `[Term 1c]`, ... (List ALL generated Korean terms in native script, comma-separated within backticks)
+        *   German: `[Term 1a]`, `[Term 1b]`, ... (List ALL generated German terms, comma-separated within backticks)
+        *   French: `[Term 1a]`, `[Term 1b]`, ... (List ALL generated French terms, comma-separated within backticks)
+        *   Spanish: `[Term 1a]`, `[Term 1b]`, ... (List ALL generated Spanish terms, comma-separated within backticks)
+        *   Italian: `[Term 1a]`, `[Term 1b]`, ... (List ALL generated Italian terms, comma-separated within backticks)
+        *   ... (List ALL requested languages for THIS concept group, include ALL terms generated for each language)
+
+    **Concept Group 2: [Concept 2 Descriptive Label (Precise and Technical)]**
+        *   *Description:* [1-2 sentence precise technical description of the concept]
+        *   English: `[Term 2a]`, `[Term 2b]`, ...
+        *   Mandarin: `[Term 2a]`, `[Term 2b]`, ...
+        *   ... (Repeat for all languages and terms)
+
+    ... (Repeat for all cross-lingual concept groups)
+
+    ### III. Language-Specific or Nuanced Search Terms
+    This section lists search terms that are specific to particular languages or represent nuances not easily captured by cross-lingual concept groups. These terms can be valuable for targeted searching in specific linguistic contexts.
+
+    *   **Korean:** `[Unique Term A]`, `[Unique Term B]`, ... (List unique Korean terms in native script, comma-separated within backticks)
+        *   *Nuance/Context:* [Briefly explain the specific nuance or context of these terms]
+    *   **Japanese:** `[Unique Term C]`, ... (List unique Japanese terms in native script, comma-separated within backticks)
+        *   *Nuance/Context:* [Briefly explain the specific nuance or context of these terms]
+    *   ... (Repeat for other languages with unique terms)
+
+    **Important Formatting and Execution Notes:**
+    *   **Conceptual Grouping Accuracy:**  Ensure rigorous accuracy in cross-lingual concept grouping. Only group terms representing truly identical concepts.
+    *   **Unique Term Justification:**  Clearly justify why terms are listed as language-specific and describe their unique nuance or context.
+    *   **Native Term Effectiveness:**  Prioritize the most effective NATIVE terms per concept/language, reflecting deep terminological understanding and considering synonyms, variations, and technical jargon within each language.
+    *   **Comprehensive Term Listing:** **List ALL generated terms for each language together, separated by commas, within the backticks.**
+    *   **Search Link Generation Removed:**  Search links are not included in this report as the focus is on generating a comprehensive keyword strategy applicable across various patent and NPL databases.  Adapt these terms for specific database syntax and Boolean operators (AND, OR, NEAR, etc.) as needed during actual searching.
+    *   Use standard Markdown list and section formatting.
     *   Do NOT include triple backticks around the final output.
 
     Invention description is attached below.
