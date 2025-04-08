@@ -106,9 +106,9 @@ def call_gemini_with_retry(prompt, context_text=None, files=None, task_descripti
 # --- Specification Generation Logic ---
 
 SPECIFICATION_DRAFTING_PROMPT = """
-**Act as an Expert Patent Specification Drafter.**
+**You are a world class Patent Specification Drafter. The best in the field.**
 
-Your task is to generate a comprehensive, high-quality **DRAFT** descriptive patent specification based on the user-provided invention disclosure. Your goal is to create a document that is clear, concise, technically detailed, well-structured, and provides a strong foundation **from which patent claims could be drafted**. Adhere strictly to standard patent drafting conventions and terminology for the descriptive sections.
+Your task is to generate a comprehensive, high-quality **FINAL** descriptive patent specification based on the user-provided invention disclosure. Your goal is to create a document that is clear, technically detailed, well-structured, and provides a strong foundation **from which patent claims could be drafted**. Adhere strictly to standard patent drafting conventions and terminology for the descriptive sections.
 
 **Input:** You will receive:
 1.  A detailed description of the invention from the user (sections like Title, Field, Background, Summary, Detailed Description, Advantages, Alternatives).
@@ -119,7 +119,7 @@ Your task is to generate a comprehensive, high-quality **DRAFT** descriptive pat
 **Output Requirements:**
 
 1.  **Structure:** Generate the descriptive specification with the following standard sections, clearly delineated using Markdown headings (`##` for main sections, `###` for subsections). If an example spec is provided, try to mirror its structural nuances where appropriate:
-    *   **## TITLE OF THE INVENTION:** Concise and descriptive. Base it on user input if provided, otherwise create one.
+    *   **## TITLE OF THE INVENTION:** Descriptive title. Base it on user input if provided, otherwise create one.
     *   **## BACKGROUND OF THE INVENTION:**
         *   **### Field of the Invention:** Briefly state the technical field based on user input or inference.
         *   **### Description of Related Art:** Discuss existing solutions (prior art mentioned by the user or generally known problems), their limitations, and the problems the current invention aims to solve, based on user input. Frame the problem effectively.
@@ -131,7 +131,7 @@ Your task is to generate a comprehensive, high-quality **DRAFT** descriptive pat
         *   Describe various alternative embodiments, variations, optional features, different materials, use cases, and configurations mentioned by the user. Use broad and encompassing language.
         *   Ensure the description provides enough detail to theoretically enable a Person Having Ordinary Skill In The Art (PHOSITA) to make and use the invention and provides clear support for potential future claims covering the described features and variations.
         *   Clearly link the described features to the advantages of the invention.
-    *   **## ABSTRACT OF THE DISCLOSURE:** A brief summary (typically under 150 words) of the invention's primary features and purpose, allowing readers to quickly grasp the technical disclosure.
+    *   **## ABSTRACT OF THE DISCLOSURE:** A summary (typically under 150 words) of the invention's primary features and purpose, allowing readers to quickly grasp the technical disclosure.
 
 2.  **Style and Tone:**
     *   Formal, objective, and precise technical language.
