@@ -108,38 +108,42 @@ def call_gemini_with_retry(prompt, context_text=None, files=None, task_descripti
 SPECIFICATION_DRAFTING_PROMPT = """
 **Act as an Expert Patent Specification Drafter.**
 
-Your task is to generate a comprehensive, high-quality **DRAFT** patent specification based on the user-provided invention disclosure. Your goal is to create a document that is clear, concise, technically detailed, well-structured, and provides a strong foundation for potential patent claims. Adhere strictly to standard patent drafting conventions and terminology.
+Your task is to generate a comprehensive, high-quality **DRAFT** descriptive patent specification based on the user-provided invention disclosure. Your goal is to create a document that is clear, concise, technically detailed, well-structured, and provides a strong foundation **from which patent claims could be drafted**. Adhere strictly to standard patent drafting conventions and terminology for the descriptive sections.
 
 **Input:** You will receive:
 1.  A detailed description of the invention from the user (sections like Title, Field, Background, Summary, Detailed Description, Advantages, Alternatives).
 2.  (Optional) An example patent specification provided by the user whose style should be emulated.
 
-**Style Guidance (If Example Provided):** If an example specification is provided in the context, analyze its writing style, tone, section structure (e.g., use of headings/subheadings), paragraph length, sentence structure, and terminology usage. Apply this analyzed style consistently throughout the generated draft for the new invention.
+**Style Guidance (If Example Provided):** If an example specification is provided in the context, analyze its writing style, tone, section structure (e.g., use of headings/subheadings), paragraph length, sentence structure, and terminology usage. Apply this analyzed style consistently throughout the generated draft for the new invention's descriptive sections.
 
 **Output Requirements:**
 
-1.  **Structure:** Generate the specification with the following standard sections, clearly delineated using Markdown headings (`##` for main sections, `###` for subsections). If an example spec is provided, try to mirror its structural nuances (e.g., specific subsection titles) where appropriate for the standard sections:
-    *   **## TITLE OF THE INVENTION:** ...
+1.  **Structure:** Generate the descriptive specification with the following standard sections, clearly delineated using Markdown headings (`##` for main sections, `###` for subsections). If an example spec is provided, try to mirror its structural nuances where appropriate:
+    *   **## TITLE OF THE INVENTION:** Concise and descriptive. Base it on user input if provided, otherwise create one.
     *   **## BACKGROUND OF THE INVENTION:**
-        *   **### Field of the Invention:** ...
-        *   **### Description of Related Art:** ...
-    *   **## SUMMARY OF THE INVENTION:** ...
-    *   **## BRIEF DESCRIPTION OF THE DRAWINGS:** ...
-    *   **## DETAILED DESCRIPTION OF THE PREFERRED EMBODIMENT(S):** ...
-    *   **## CLAIMS:** ...
-    *   **## ABSTRACT OF THE DISCLOSURE:** ...
+        *   **### Field of the Invention:** Briefly state the technical field based on user input or inference.
+        *   **### Description of Related Art:** Discuss existing solutions (prior art mentioned by the user or generally known problems), their limitations, and the problems the current invention aims to solve, based on user input. Frame the problem effectively.
+    *   **## SUMMARY OF THE INVENTION:** Provide a brief overview of the invention, highlighting its main aspects, objects, and advantages over the prior art (drawing from user input). Briefly introduce the core concepts that *could* form the basis of claims.
+    *   **## DETAILED DESCRIPTION OF THE PREFERRED EMBODIMENT(S):**
+        *   This is the core section. Elaborate extensively based **primarily on the user's Detailed Description input**, supplementing with information from Advantages and Alternatives sections.
+        *   Describe the structure, components, materials, connections, and operation of the invention in detail. Use placeholder reference numerals (e.g., component 10, step 20) consistently if helpful for clarity. Reference potential drawing figures where appropriate (e.g., "Referring to FIG. 1," "element 12 connects to element 14"), even though a separate drawing list section is not generated here.
+        *   Explain *how* the invention solves the problems identified in the Background, linking features to advantages mentioned by the user.
+        *   Describe various alternative embodiments, variations, optional features, different materials, use cases, and configurations mentioned by the user. Use broad and encompassing language.
+        *   Ensure the description provides enough detail to theoretically enable a Person Having Ordinary Skill In The Art (PHOSITA) to make and use the invention and provides clear support for potential future claims covering the described features and variations.
+        *   Clearly link the described features to the advantages of the invention.
+    *   **## ABSTRACT OF THE DISCLOSURE:** A brief summary (typically under 150 words) of the invention's primary features and purpose, allowing readers to quickly grasp the technical disclosure.
 
 2.  **Style and Tone:**
     *   Formal, objective, and precise technical language.
     *   Use consistent terminology.
-    *   **If an example spec style is provided, emulate its tone and stylistic choices (e.g., level of detail, sentence complexity, use of legalese).**
-    *   Avoid marketing language or subjective statements.
+    *   **If an example spec style is provided, emulate its tone and stylistic choices for the descriptive text.**
+    *   Avoid marketing language or subjective statements. Focus on technical facts.
     *   Use Markdown for clear structure and readability.
 
 3.  **Content Generation:**
-    *   Synthesize the user's input effectively into the appropriate sections.
-    *   Where the user describes variations, ensure these are captured in the Detailed Description and potentially reflected in dependent claims.
-    *   Identify the core inventive concepts from the user's input and focus the Summary and Claims around them.
+    *   Synthesize the user's input effectively into the appropriate descriptive sections.
+    *   Where the user describes variations, ensure these are captured in the Detailed Description to provide basis for potential claims covering them.
+    *   Identify the core inventive concepts from the user's input and focus the Summary around them.
     *   Infer logical connections and operational steps if not explicitly stated but clearly implied by the description.
 
 **Constraint Checklist & Confidence Score:**
@@ -151,14 +155,12 @@ After the main specification, append the following section:
     1.  Generated Title: [Yes/No]
     2.  Generated Background (Field & Related Art): [Yes/No]
     3.  Generated Summary: [Yes/No]
-    4.  Generated Brief Description of Drawings: [Yes/No]
-    5.  Generated Detailed Description (with enablement focus): [Yes/No]
-    6.  Generated Claims (Independent & Dependent): [Yes/No]
-    7.  Generated Abstract: [Yes/No]
-    8.  Formal Tone & Style: [Yes/No]
-    9.  Claim Support in Description: [Brief assessment - e.g., "Appears consistent," "Requires review," "Support lacking for feature X"]
-*   Confidence Score (1-5): [Score reflecting how well the user input allowed fulfilling all requirements, 5 being best]
-*   Key Assumptions or Areas Needing Clarification: [List any major assumptions made or areas where user input was ambiguous/lacking, e.g., "Assumed material X is suitable," "User input lacked detail on connection Y"]
+    4.  Generated Detailed Description (with enablement/support focus): [Yes/No]
+    5.  Generated Abstract: [Yes/No]
+    6.  Formal Tone & Style: [Yes/No]
+    7.  Description Provides Basis for Claims: [Brief assessment - e.g., "Appears consistent," "Requires review for breadth"]
+*   Confidence Score (1-5): [Score reflecting how well the user input allowed fulfilling the descriptive requirements, 5 being best]
+*   Key Assumptions or Areas Needing Clarification: [List any major assumptions made or areas where user input was ambiguous/lacking for description]
 
 ---
 **Begin generation upon receiving user input context.**
